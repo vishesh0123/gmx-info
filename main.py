@@ -5,6 +5,7 @@ from tqdm.contrib.concurrent import process_map
 import itertools
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor , as_completed
+from eth_abi import abi
 from abi_data import gmx_abi , staked_gmx_tracker_abi , gmx_vester_abi , multicall_abi
 
 GMX_ARBITRUM = "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a"
@@ -111,27 +112,75 @@ def extract_to_addresses(logs):
         to_addresses.add(decoded_address)
     return list(to_addresses)
 
+
 def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester,contract_addresses,helper_contracts,multicall):
     try:
-        gmx_staked =  staked_gmx_tracker.functions.depositBalances(account, contract_addresses[0]).call() / 10**18
-        esgmx_staked = staked_gmx_tracker.functions.depositBalances(account, helper_contracts[1]).call() / 10**18
-        glp_wallet = glp.functions.balanceOf(account).call() / 10**18
-        esgmx1 = gmx_vester.functions.getMaxVestableAmount(account).call()
-        esgmx2 = glp_vester.functions.getMaxVestableAmount(account).call()
+        calls =[]
+        gmx_wallet = gmx.encodeABI(fn_name='balanceOf',args=[account])
+        gmx_staked = staked_gmx_tracker.encodeABI(fn_name='depositBalances',args=[account,contract_addresses[0]])
+        esgmx_wallet = esgmx.encodeABI(fn_name='balanceOf',args=[account])
+        esgmx_staked = staked_gmx_tracker.encodeABI(fn_name='depositBalances',args=[account,helper_contracts[1]])
+        mp_wallet = bonus_gmx_tracker.encodeABI(fn_name='claimable',args=[account])
+        mp_staked = staked_fee_gmx_tracker.encodeABI(fn_name='stakedAmounts',args=[account])
+        glp_wallet = glp.encodeABI(fn_name='balanceOf',args=[account])
+        esgmx1 = gmx_vester.encodeABI(fn_name='getMaxVestableAmount',args=[account])
+        esgmx2 = glp_vester.encodeABI(fn_name='getMaxVestableAmount',args=[account])
+        
+        calls.append({"target":contract_addresses[0],"callData":gmx_wallet})
+        calls.append({"target":helper_contracts[0],"callData":gmx_staked})
+        calls.append({"target":helper_contracts[1],"callData":esgmx_wallet})
+        calls.append({"target":helper_contracts[0],"callData":esgmx_staked})
+        calls.append({"target":helper_contracts[3],"callData":mp_wallet})
+        calls.append({"target":helper_contracts[2],"callData":mp_staked})
+        calls.append({"target":contract_addresses[3],"callData":glp_wallet})
+        calls.append({"target":helper_contracts[4],"callData":esgmx1})
+        calls.append({"target":helper_contracts[5],"callData":esgmx2})
+        
+        
+        result = multicall.functions.aggregate(calls).call()
+        result = result[1]
+
+        gmx_wallet = (abi.decode(['uint256'],result[0]))[0] / 10**18
+        gmx_staked = (abi.decode(['uint256'],result[1]))[0] / 10**18
+        esgmx_wallet = (abi.decode(['uint256'],result[2]))[0] / 10**18
+        esgmx_staked = (abi.decode(['uint256'],result[3]))[0] / 10**18
+        mp_wallet = (abi.decode(['uint256'],result[4]))[0] / 10**18
+        mp_staked = (abi.decode(['uint256'],result[5]))[0] / 10**18
+        glp_wallet = (abi.decode(['uint256'],result[6]))[0] / 10**18
+        esgmx1 = (abi.decode(['uint256'],result[7]))[0]
+        esgmx2 = (abi.decode(['uint256'],result[8]))[0]
+
+        gmx_to_vest = gmx_vester.encodeABI(fn_name='getPairAmount',args=[account,esgmx1])
+        glp_to_vest = glp_vester.encodeABI(fn_name='getPairAmount',args=[account,esgmx2])
+
+        calls1=[]
+
+        calls1.append({"target":helper_contracts[4],"callData":gmx_to_vest})
+        calls1.append({"target":helper_contracts[5],"callData":glp_to_vest})
+
+        result = multicall.functions.aggregate(calls1).call()
+        result = result[1]
+
+        gmx_to_vest = (abi.decode(['uint256'],result[0]))[0] / 10**18
+        glp_to_vest = (abi.decode(['uint256'],result[1]))[0] / 10**18
+
+
+
+        
         data = {
             'account': account,
-            'GMX in wallet': gmx.functions.balanceOf(account).call() / 10**18,
+            'GMX in wallet': gmx_wallet,
             'GMX staked':gmx_staked,
-            'esGMX in wallet': esgmx.functions.balanceOf(account).call() / 10**18,
+            'esGMX in wallet': esgmx_wallet,
             'esGMX staked': esgmx_staked,
-            'MP in wallet': bonus_gmx_tracker.functions.claimable(account).call() / 10**18,
-            'MP staked': (staked_fee_gmx_tracker.functions.stakedAmounts(account).call() / 10**18) - (gmx_staked + esgmx_staked),
+            'MP in wallet': mp_wallet,
+            'MP staked': mp_staked - (gmx_staked + esgmx_staked),
             'GLP in wallet': glp_wallet,
             'GLP staked': glp_wallet,
             'esGMX earned from GMX/esGMX/MPs':esgmx1 / 10**18,
-            'GMX needed to vest': gmx_vester.functions.getPairAmount(account,esgmx1).call() / 10**18,
+            'GMX needed to vest': gmx_to_vest,
             'esGMX earned from GLP': esgmx2 / 10**18,
-            'GLP needed to vest': glp_vester.functions.getPairAmount(account, esgmx2).call() / 10**18
+            'GLP needed to vest': glp_to_vest
         }
         return data
     except Exception as e:
@@ -141,7 +190,8 @@ def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_
 
 if __name__ == "__main__":
     network_name,rpc_url, contract_addresses,helper_contracts,deployment_block = choose_network()
-    latest_block_number = initialize_web3_connection(rpc_url).eth.block_number
+    # latest_block_number = initialize_web3_connection(rpc_url).eth.block_number
+    latest_block_number = 147903 + 1
     block_ranges = divide_into_chunks(deployment_block, latest_block_number, BLOCK_RANGE_LIMIT)
     args = [(range_info, rpc_url, contract_addresses) for range_info in block_ranges]
     chunksize = 20
