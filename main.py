@@ -3,6 +3,7 @@ import pandas as pd
 from multiprocessing import Pool
 from tqdm.contrib.concurrent import process_map
 import itertools
+from tqdm import tqdm
 from abi_data import gmx_abi , staked_gmx_tracker_abi , gmx_vester_abi
 
 GMX_ARBITRUM = "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a"
@@ -33,6 +34,8 @@ GMX_AVALANCHE_DEPLOYMENT_BLOCK = 8352150
 TRANSFER_EVENT_SIGNATURE = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 BLOCK_RANGE_LIMIT = 9999
 NUM_PROCESSES = 4
+RPC_ARBITRUM="https://arb-mainnet.g.alchemy.com/v2/GCYsGX1wP9QOpItP7s4o5mqfCbnLHWjr"
+RPC_AVALANCHE="https://1rpc.io/5Fg5wv6Qf93EVMjYn/avax/c"
 
 def choose_network():
     print("Select a network:")
@@ -43,7 +46,7 @@ def choose_network():
         if choice == "1":
             return (
                 "arbitrum",
-                "https://arb-mainnet.g.alchemy.com/v2/GCYsGX1wP9QOpItP7s4o5mqfCbnLHWjr",
+                RPC_ARBITRUM,
                 [GMX_ARBITRUM, GLP_ARBITRUM, SGMX_ARBITRUM, SGLP_ARBITRUM],
                 [STAKED_GMX_TRACKER_ARBITRUM,ESGMX_ARBITRUM,FEE_GMX_TRACKER_ARBITRUM,BONUS_GMX_TRACKER_ARBITRUM,GMX_VESTER_ARBITRUM,GLP_VESTER_ARBITRUM],
                 GMX_ARBITRUM_DEPLOYMENT_BLOCK,
@@ -51,7 +54,7 @@ def choose_network():
         elif choice == "2":
             return (
                 "avalanche",
-                "https://1rpc.io/5Fg5wv6Qf93EVMjYn/avax/c",
+                RPC_AVALANCHE,
                 [GMX_AVALANCHE, GLP_AVALANCHE, SGMX_AVALANCHE, SGLP_AVALANCHE],
                 [STAKED_GMX_TRACKER_AVALANCHE,ESGMX_AVALANCHE,FEE_GMX_TRACKER_AVALANCHE,BONUS_GMX_TRACKER_AVALANCHE,GMX_VESTER_AVALANCHE,GLP_VESTER_AVALANCHE],
                 GMX_AVALANCHE_DEPLOYMENT_BLOCK,
@@ -90,8 +93,8 @@ def divide_into_chunks(start_block, end_block, chunk_size):
     return ranges
 
 def is_eoa(web3, address):
-    code = web3.eth.getCode(address)
-    return code == '0x'
+    code = web3.eth.get_code(address)
+    return code == b''
 
 def extract_to_addresses(logs):
     to_addresses = set()
@@ -123,13 +126,20 @@ if __name__ == "__main__":
     gmx_vester = web3.eth.contract(address=helper_contracts[4],abi=gmx_vester_abi)
     glp_vester = web3.eth.contract(address=helper_contracts[5],abi=gmx_vester_abi)
 
+    print(f'Found {len(unique_to_addresses)} Unique addresses')
+
+    eoa_addresses = []
+    for address in tqdm(unique_to_addresses, desc="Filtering out contract addresses", unit="addr"):
+        if is_eoa(web3, address):
+            eoa_addresses.append(address)
+
     df = pd.DataFrame(columns=['account', 'GMX in wallet', 'GMX staked', 'esGMX in wallet', 'esGMX staked', 'GLP in wallet', 'GLP staked', 'MP in wallet', 'MP staked','esGMX earned from GMX/esGMX/MPs', 'GMX needed to vest', 'esGMX earned from GLP','GLP needed to vest'])
 
-    df['account'] = unique_to_addresses
+    df['account'] = eoa_addresses
 
-    for index, row in df.iterrows():
-        account = row['account']
-        print(f'{account} done {len(unique_to_addresses) - index}')
+    print(f'Found {len(eoa_addresses)} Unique account(EOA) addresses')
+
+    for index, account in tqdm(enumerate(eoa_addresses), total=len(eoa_addresses), desc="Fetching accounts data"):
 
         df.at[index,'GMX in wallet'] = gmx.functions.balanceOf(account).call() / 10**18
         df.at[index,'GMX staked'] = staked_gmx_tracker.functions.depositBalances(account,GMX_ARBITRUM).call() / 10**18
@@ -147,6 +157,5 @@ if __name__ == "__main__":
         df.at[index,'GLP needed to vest'] = glp_vester.functions.getPairAmount(account, esgmx2).call() / 10**18
 
     df.to_csv(f'gmx_accounts_{network_name}.csv', index=False)
-    print(f'Found {len(unique_to_addresses)} Unique addresses')
     print('CSV file created: gmx_accounts.csv')
 
