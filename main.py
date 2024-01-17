@@ -190,8 +190,7 @@ def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_
 
 if __name__ == "__main__":
     network_name,rpc_url, contract_addresses,helper_contracts,deployment_block = choose_network()
-    # latest_block_number = initialize_web3_connection(rpc_url).eth.block_number
-    latest_block_number = 147903 + 1
+    latest_block_number = initialize_web3_connection(rpc_url).eth.block_number
     block_ranges = divide_into_chunks(deployment_block, latest_block_number, BLOCK_RANGE_LIMIT)
     args = [(range_info, rpc_url, contract_addresses) for range_info in block_ranges]
     chunksize = 20
