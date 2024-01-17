@@ -39,7 +39,7 @@ TRANSFER_EVENT_SIGNATURE = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628
 BLOCK_RANGE_LIMIT = 9999
 NUM_PROCESSES = 4
 RPC_ARBITRUM="https://arb-mainnet.g.alchemy.com/v2/GCYsGX1wP9QOpItP7s4o5mqfCbnLHWjr"
-RPC_AVALANCHE="https://avalanche-mainnet.infura.io/v3/e0fdec5f940f4db9a7280b5793c9e1db"
+RPC_AVALANCHE="https://avalanche-mainnet.infura.io/v3/2228b0132c8e468ca39f6b8744215656"
 
 def choose_network():
     print("Select a network:")
@@ -107,8 +107,6 @@ def extract_to_addresses(logs):
 
 def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester,contract_addresses,helper_contracts,multicall):
     try:
-        if web3.eth.get_code(account) != b'':
-            return None 
         
         calls =[]
         gmx_wallet = gmx.encodeABI(fn_name='balanceOf',args=[account])
