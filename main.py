@@ -12,7 +12,7 @@ ESGMX_ARBITRUM = "0xf42Ae1D54fd613C9bb14810b0588FaAa09a426cA"
 STAKED_GMX_TRACKER_ARBITRUM = "0x908C4D94D34924765f1eDc22A1DD098397c59dD4"
 FEE_GMX_TRACKER_ARBITRUM = "0xd2D1162512F927a7e282Ef43a362659E4F2a728F"
 BONUS_GMX_TRACKER_ARBITRUM = "0x4d268a7d4C16ceB5a606c173Bd974984343fea13"
-GLP_ARBITRUM = "0x1aDDD80E6039594eE970E5872D247bf0414C8903"
+GLP_ARBITRUM = "0x4277f8F2c384827B5273592FF7CeBd9f2C1ac258"
 SGMX_ARBITRUM = "0x908C4D94D34924765f1eDc22A1DD098397c59dD4"
 SGLP_ARBITRUM = "0x1aDDD80E6039594eE970E5872D247bf0414C8903"
 GMX_VESTER_ARBITRUM = "0x199070DDfd1CFb69173aa2F7e20906F26B363004"
@@ -109,10 +109,37 @@ def extract_to_addresses(logs):
         to_addresses.add(decoded_address)
     return list(to_addresses)
 
+def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester,contract_addresses,helper_contracts):
+    try:
+        gmx_staked =  staked_gmx_tracker.functions.depositBalances(account, contract_addresses[0]).call() / 10**18
+        esgmx_staked = staked_gmx_tracker.functions.depositBalances(account, helper_contracts[1]).call() / 10**18
+        glp_wallet = glp.functions.balanceOf(account).call() / 10**18
+        esgmx1 = gmx_vester.functions.getMaxVestableAmount(account).call()
+        esgmx2 = glp_vester.functions.getMaxVestableAmount(account).call()
+        data = {
+            'account': account,
+            'GMX in wallet': gmx.functions.balanceOf(account).call() / 10**18,
+            'GMX staked':gmx_staked,
+            'esGMX in wallet': esgmx.functions.balanceOf(account).call() / 10**18,
+            'esGMX staked': esgmx_staked,
+            'MP in wallet': bonus_gmx_tracker.functions.claimable(account).call() / 10**18,
+            'MP staked': (staked_fee_gmx_tracker.functions.stakedAmounts(account).call() / 10**18) - (gmx_staked + esgmx_staked),
+            'GLP in wallet': glp_wallet,
+            'GLP staked': glp_wallet,
+            'esGMX earned from GMX/esGMX/MPs':esgmx1 / 10**18,
+            'GMX needed to vest': gmx_vester.functions.getPairAmount(account,esgmx1).call() / 10**18,
+            'esGMX earned from GLP': esgmx2 / 10**18,
+            'GLP needed to vest': glp_vester.functions.getPairAmount(account, esgmx2).call() / 10**18
+        }
+        return data
+    except Exception as e:
+        print(f"Error fetching data for account {account}: {str(e)}")
+        return None
+
+
 if __name__ == "__main__":
     network_name,rpc_url, contract_addresses,helper_contracts,deployment_block = choose_network()
-    # latest_block_number = initialize_web3_connection(rpc_url).eth.block_number
-    latest_block_number = 147903 + 125
+    latest_block_number = initialize_web3_connection(rpc_url).eth.block_number
     block_ranges = divide_into_chunks(deployment_block, latest_block_number, BLOCK_RANGE_LIMIT)
     args = [(range_info, rpc_url, contract_addresses) for range_info in block_ranges]
     chunksize = 20
@@ -126,7 +153,7 @@ if __name__ == "__main__":
     gmx = web3.eth.contract(address=contract_addresses[0], abi=gmx_abi)
     staked_gmx_tracker = web3.eth.contract(address=helper_contracts[0],abi=staked_gmx_tracker_abi)
     esgmx = web3.eth.contract(address=helper_contracts[1],abi=gmx_abi)
-    glp = web3.eth.contract(address=contract_addresses[1],abi=gmx_abi)
+    glp = web3.eth.contract(address=contract_addresses[3],abi=gmx_abi)
     staked_fee_gmx_tracker = web3.eth.contract(address=helper_contracts[2],abi=staked_gmx_tracker_abi)
     bonus_gmx_tracker = web3.eth.contract(address=helper_contracts[3],abi=staked_gmx_tracker_abi)
     gmx_vester = web3.eth.contract(address=helper_contracts[4],abi=gmx_vester_abi)
@@ -151,23 +178,40 @@ if __name__ == "__main__":
 
     print(f'Found {len(eoa_addresses)} Unique account(EOA) addresses')
 
-    for index, account in tqdm(enumerate(eoa_addresses), total=len(eoa_addresses), desc="Fetching accounts data"):
+    # for index, account in tqdm(enumerate(eoa_addresses), total=len(eoa_addresses), desc="Fetching accounts data"):
 
-        df.at[index,'GMX in wallet'] = gmx.functions.balanceOf(account).call() / 10**18
-        df.at[index,'GMX staked'] = staked_gmx_tracker.functions.depositBalances(account,GMX_ARBITRUM).call() / 10**18
-        df.at[index,'esGMX in wallet'] = esgmx.functions.balanceOf(account).call() / 10**18
-        df.at[index,'esGMX staked'] = staked_gmx_tracker.functions.depositBalances(account,ESGMX_ARBITRUM).call() / 10**18
-        df.at[index,'MP in wallet'] = bonus_gmx_tracker.functions.claimable(account).call() / 10**18
-        df.at[index,'MP staked'] = (staked_fee_gmx_tracker.functions.stakedAmounts(account).call() / 10**18) - ( df.at[index,'GMX staked'] + df.at[index,'esGMX staked'])
-        df.at[index, 'GLP in wallet'] = glp.functions.balanceOf(account).call() / 10**18
-        df.at[index,'GLP staked'] = df.at[index, 'GLP in wallet']
-        esgmx1 = gmx_vester.functions.getMaxVestableAmount(account).call()
-        df.at[index,'esGMX earned from GMX/esGMX/MPs'] = esgmx1 / 10**18
-        df.at[index,'GMX needed to vest'] = gmx_vester.functions.getPairAmount(account,esgmx1).call() / 10**18
-        esgmx2 = glp_vester.functions.getMaxVestableAmount(account).call()
-        df.at[index,'esGMX earned from GLP'] = esgmx2 / 10**18
-        df.at[index,'GLP needed to vest'] = glp_vester.functions.getPairAmount(account, esgmx2).call() / 10**18
+    #     df.at[index,'GMX in wallet'] = gmx.functions.balanceOf(account).call() / 10**18
+    #     df.at[index,'GMX staked'] = staked_gmx_tracker.functions.depositBalances(account,contract_addresses[0]).call() / 10**18
+    #     df.at[index,'esGMX in wallet'] = esgmx.functions.balanceOf(account).call() / 10**18
+    #     df.at[index,'esGMX staked'] = staked_gmx_tracker.functions.depositBalances(account,helper_contracts[1]).call() / 10**18
+    #     df.at[index,'MP in wallet'] = bonus_gmx_tracker.functions.claimable(account).call() / 10**18
+    #     df.at[index,'MP staked'] = (staked_fee_gmx_tracker.functions.stakedAmounts(account).call() / 10**18) - ( df.at[index,'GMX staked'] + df.at[index,'esGMX staked'])
+    #     df.at[index, 'GLP in wallet'] = glp.functions.balanceOf(account).call() / 10**18
+    #     df.at[index,'GLP staked'] = df.at[index, 'GLP in wallet']
+    #     esgmx1 = gmx_vester.functions.getMaxVestableAmount(account).call()
+    #     df.at[index,'esGMX earned from GMX/esGMX/MPs'] = esgmx1 / 10**18
+    #     df.at[index,'GMX needed to vest'] = gmx_vester.functions.getPairAmount(account,esgmx1).call() / 10**18
+    #     esgmx2 = glp_vester.functions.getMaxVestableAmount(account).call()
+    #     df.at[index,'esGMX earned from GLP'] = esgmx2 / 10**18
+    #     df.at[index,'GLP needed to vest'] = glp_vester.functions.getPairAmount(account, esgmx2).call() / 10**18
 
-    df.to_csv(f'gmx_accounts_{network_name}.csv', index=False)
+    with ThreadPoolExecutor(max_workers=NUM_PROCESSES) as executor:
+        # Submitting tasks to the executor
+        future_to_account = {executor.submit(fetch_account_data, account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester,contract_addresses,helper_contracts): account for account in eoa_addresses}
+
+        # Using tqdm to display progress
+        for future in tqdm(as_completed(future_to_account), total=len(eoa_addresses), desc="Fetching accounts data"):
+            account = future_to_account[future]
+            try:
+                account_data = future.result()
+                if account_data:
+                    # Find the index for the current account and update the DataFrame
+                    index = df[df['account'] == account].index[0]
+                    for key, value in account_data.items():
+                        df.at[index, key] = value
+            except Exception as e:
+                print(f"Error processing data for account {account}: {str(e)}")
+
+    df.to_csv(f'gmx_accounts_{network_name}_{latest_block_number}.csv', index=False)
     print('CSV file created: gmx_accounts.csv')
 
