@@ -4,6 +4,7 @@ from multiprocessing import Pool
 from tqdm.contrib.concurrent import process_map
 import itertools
 from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor , as_completed
 from abi_data import gmx_abi , staked_gmx_tracker_abi , gmx_vester_abi
 
 GMX_ARBITRUM = "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a"
@@ -92,9 +93,13 @@ def divide_into_chunks(start_block, end_block, chunk_size):
         start_block = batch_end_block + 1
     return ranges
 
-def is_eoa(web3, address):
-    code = web3.eth.get_code(address)
-    return code == b''
+def is_eoa_parallel(web3, address):
+    try:
+        code = web3.eth.get_code(address)
+        return address if (code == b'') else None
+    except Exception as e:
+        print(f"Error checking address {address}: {str(e)}")
+        return None
 
 def extract_to_addresses(logs):
     to_addresses = set()
@@ -106,7 +111,8 @@ def extract_to_addresses(logs):
 
 if __name__ == "__main__":
     network_name,rpc_url, contract_addresses,helper_contracts,deployment_block = choose_network()
-    latest_block_number = initialize_web3_connection(rpc_url).eth.block_number
+    # latest_block_number = initialize_web3_connection(rpc_url).eth.block_number
+    latest_block_number = 147903 + 125
     block_ranges = divide_into_chunks(deployment_block, latest_block_number, BLOCK_RANGE_LIMIT)
     args = [(range_info, rpc_url, contract_addresses) for range_info in block_ranges]
     chunksize = 20
@@ -128,10 +134,16 @@ if __name__ == "__main__":
 
     print(f'Found {len(unique_to_addresses)} Unique addresses')
 
-    eoa_addresses = []
-    for address in tqdm(unique_to_addresses, desc="Filtering out contract addresses", unit="addr"):
-        if is_eoa(web3, address):
-            eoa_addresses.append(address)
+    with ThreadPoolExecutor(max_workers=NUM_PROCESSES) as executor:
+        # Create a list to store futures
+        futures = [executor.submit(is_eoa_parallel, web3, address) for address in unique_to_addresses]
+        
+        # Process the futures as they complete
+        eoa_addresses = []
+        for future in tqdm(as_completed(futures), total=len(unique_to_addresses), desc="Filtering out contract addresses", unit="addr"):
+            result = future.result()
+            if result:
+                eoa_addresses.append(result)
 
     df = pd.DataFrame(columns=['account', 'GMX in wallet', 'GMX staked', 'esGMX in wallet', 'esGMX staked', 'GLP in wallet', 'GLP staked', 'MP in wallet', 'MP staked','esGMX earned from GMX/esGMX/MPs', 'GMX needed to vest', 'esGMX earned from GLP','GLP needed to vest'])
 
