@@ -96,14 +96,6 @@ def divide_into_chunks(start_block, end_block, chunk_size):
         start_block = batch_end_block + 1
     return ranges
 
-def is_eoa_parallel(web3, address):
-    try:
-        code = web3.eth.get_code(address)
-        return address if (code == b'') else None
-    except Exception as e:
-        print(f"Error checking address {address}: {str(e)}")
-        return None
-
 def extract_to_addresses(logs):
     to_addresses = set()
     for log in logs:
@@ -115,6 +107,9 @@ def extract_to_addresses(logs):
 
 def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester,contract_addresses,helper_contracts,multicall):
     try:
+        if web3.eth.get_code(account) != b'':
+            return None 
+        
         calls =[]
         gmx_wallet = gmx.encodeABI(fn_name='balanceOf',args=[account])
         gmx_staked = staked_gmx_tracker.encodeABI(fn_name='depositBalances',args=[account,contract_addresses[0]])
@@ -213,29 +208,16 @@ if __name__ == "__main__":
 
     print(f'Found {len(unique_to_addresses)} Unique addresses')
 
-    with ThreadPoolExecutor(max_workers=NUM_PROCESSES) as executor:
-        # Create a list to store futures
-        futures = [executor.submit(is_eoa_parallel, web3, address) for address in unique_to_addresses]
-        
-        # Process the futures as they complete
-        eoa_addresses = []
-        for future in tqdm(as_completed(futures), total=len(unique_to_addresses), desc="Filtering out contract addresses", unit="addr"):
-            result = future.result()
-            if result:
-                eoa_addresses.append(result)
-
     df = pd.DataFrame(columns=['account', 'GMX in wallet', 'GMX staked', 'esGMX in wallet', 'esGMX staked', 'GLP in wallet', 'GLP staked', 'MP in wallet', 'MP staked','esGMX earned from GMX/esGMX/MPs', 'GMX needed to vest', 'esGMX earned from GLP','GLP needed to vest'])
 
-    df['account'] = eoa_addresses
-
-    print(f'Found {len(eoa_addresses)} Unique account(EOA) addresses')
+    df['account'] = unique_to_addresses
 
     with ThreadPoolExecutor(max_workers=NUM_PROCESSES) as executor:
         # Submitting tasks to the executor
-        future_to_account = {executor.submit(fetch_account_data, account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester,contract_addresses,helper_contracts,multicall): account for account in eoa_addresses}
+        future_to_account = {executor.submit(fetch_account_data, account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester,contract_addresses,helper_contracts,multicall): account for account in unique_to_addresses}
 
         # Using tqdm to display progress
-        for future in tqdm(as_completed(future_to_account), total=len(eoa_addresses), desc="Fetching accounts data"):
+        for future in tqdm(as_completed(future_to_account), total=len(unique_to_addresses), desc="Fetching accounts data"):
             account = future_to_account[future]
             try:
                 account_data = future.result()
@@ -248,5 +230,5 @@ if __name__ == "__main__":
                 print(f"Error processing data for account {account}: {str(e)}")
 
     df.to_csv(f'gmx_accounts_{network_name}_{latest_block_number}.csv', index=False)
-    print('CSV file created: gmx_accounts.csv')
+    print(f'CSV file created: gmx_accounts_{network_name}_{latest_block_number}.csv')
 
