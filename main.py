@@ -5,7 +5,7 @@ from tqdm.contrib.concurrent import process_map
 import itertools
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor , as_completed
-from abi_data import gmx_abi , staked_gmx_tracker_abi , gmx_vester_abi
+from abi_data import gmx_abi , staked_gmx_tracker_abi , gmx_vester_abi , multicall_abi
 
 GMX_ARBITRUM = "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a"
 ESGMX_ARBITRUM = "0xf42Ae1D54fd613C9bb14810b0588FaAa09a426cA"
@@ -17,6 +17,7 @@ SGMX_ARBITRUM = "0x908C4D94D34924765f1eDc22A1DD098397c59dD4"
 SGLP_ARBITRUM = "0x1aDDD80E6039594eE970E5872D247bf0414C8903"
 GMX_VESTER_ARBITRUM = "0x199070DDfd1CFb69173aa2F7e20906F26B363004"
 GLP_VESTER_ARBITRUM = "0xA75287d2f8b217273E7FCD7E86eF07D33972042E"
+MULTICALL_ARBITRUM= "0xcA11bde05977b3631167028862bE2a173976CA11"
 GMX_ARBITRUM_DEPLOYMENT_BLOCK = 147903
 
 GMX_AVALANCHE = "0x62edc0692BD897D2295872a9FFCac5425011c661"
@@ -29,6 +30,7 @@ SGMX_AVALANCHE = "0x4d268a7d4C16ceB5a606c173Bd974984343fea13"
 SGLP_AVALANCHE = "0xaE64d55a6f09E4263421737397D1fdFA71896a69"
 GMX_VESTER_AVALANCHE="0x472361d3cA5F49c8E633FB50385BfaD1e018b445"
 GLP_VESTER_AVALANCHE="0x62331A7Bd1dfB3A7642B7db50B5509E57CA3154A"
+MULTICALL_AVALANCHE="0xcA11bde05977b3631167028862bE2a173976CA11"
 GMX_AVALANCHE_DEPLOYMENT_BLOCK = 8352150
 
 
@@ -36,7 +38,7 @@ TRANSFER_EVENT_SIGNATURE = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628
 BLOCK_RANGE_LIMIT = 9999
 NUM_PROCESSES = 4
 RPC_ARBITRUM="https://arb-mainnet.g.alchemy.com/v2/GCYsGX1wP9QOpItP7s4o5mqfCbnLHWjr"
-RPC_AVALANCHE="https://1rpc.io/5Fg5wv6Qf93EVMjYn/avax/c"
+RPC_AVALANCHE="https://avalanche-mainnet.infura.io/v3/e0fdec5f940f4db9a7280b5793c9e1db"
 
 def choose_network():
     print("Select a network:")
@@ -49,7 +51,7 @@ def choose_network():
                 "arbitrum",
                 RPC_ARBITRUM,
                 [GMX_ARBITRUM, GLP_ARBITRUM, SGMX_ARBITRUM, SGLP_ARBITRUM],
-                [STAKED_GMX_TRACKER_ARBITRUM,ESGMX_ARBITRUM,FEE_GMX_TRACKER_ARBITRUM,BONUS_GMX_TRACKER_ARBITRUM,GMX_VESTER_ARBITRUM,GLP_VESTER_ARBITRUM],
+                [STAKED_GMX_TRACKER_ARBITRUM,ESGMX_ARBITRUM,FEE_GMX_TRACKER_ARBITRUM,BONUS_GMX_TRACKER_ARBITRUM,GMX_VESTER_ARBITRUM,GLP_VESTER_ARBITRUM,MULTICALL_ARBITRUM],
                 GMX_ARBITRUM_DEPLOYMENT_BLOCK,
             )
         elif choice == "2":
@@ -57,7 +59,7 @@ def choose_network():
                 "avalanche",
                 RPC_AVALANCHE,
                 [GMX_AVALANCHE, GLP_AVALANCHE, SGMX_AVALANCHE, SGLP_AVALANCHE],
-                [STAKED_GMX_TRACKER_AVALANCHE,ESGMX_AVALANCHE,FEE_GMX_TRACKER_AVALANCHE,BONUS_GMX_TRACKER_AVALANCHE,GMX_VESTER_AVALANCHE,GLP_VESTER_AVALANCHE],
+                [STAKED_GMX_TRACKER_AVALANCHE,ESGMX_AVALANCHE,FEE_GMX_TRACKER_AVALANCHE,BONUS_GMX_TRACKER_AVALANCHE,GMX_VESTER_AVALANCHE,GLP_VESTER_AVALANCHE,MULTICALL_AVALANCHE],
                 GMX_AVALANCHE_DEPLOYMENT_BLOCK,
             )
         else:
@@ -109,7 +111,7 @@ def extract_to_addresses(logs):
         to_addresses.add(decoded_address)
     return list(to_addresses)
 
-def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester,contract_addresses,helper_contracts):
+def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester,contract_addresses,helper_contracts,multicall):
     try:
         gmx_staked =  staked_gmx_tracker.functions.depositBalances(account, contract_addresses[0]).call() / 10**18
         esgmx_staked = staked_gmx_tracker.functions.depositBalances(account, helper_contracts[1]).call() / 10**18
@@ -158,6 +160,7 @@ if __name__ == "__main__":
     bonus_gmx_tracker = web3.eth.contract(address=helper_contracts[3],abi=staked_gmx_tracker_abi)
     gmx_vester = web3.eth.contract(address=helper_contracts[4],abi=gmx_vester_abi)
     glp_vester = web3.eth.contract(address=helper_contracts[5],abi=gmx_vester_abi)
+    multicall = web3.eth.contract(address=helper_contracts[6],abi=multicall_abi)
 
     print(f'Found {len(unique_to_addresses)} Unique addresses')
 
@@ -178,26 +181,9 @@ if __name__ == "__main__":
 
     print(f'Found {len(eoa_addresses)} Unique account(EOA) addresses')
 
-    # for index, account in tqdm(enumerate(eoa_addresses), total=len(eoa_addresses), desc="Fetching accounts data"):
-
-    #     df.at[index,'GMX in wallet'] = gmx.functions.balanceOf(account).call() / 10**18
-    #     df.at[index,'GMX staked'] = staked_gmx_tracker.functions.depositBalances(account,contract_addresses[0]).call() / 10**18
-    #     df.at[index,'esGMX in wallet'] = esgmx.functions.balanceOf(account).call() / 10**18
-    #     df.at[index,'esGMX staked'] = staked_gmx_tracker.functions.depositBalances(account,helper_contracts[1]).call() / 10**18
-    #     df.at[index,'MP in wallet'] = bonus_gmx_tracker.functions.claimable(account).call() / 10**18
-    #     df.at[index,'MP staked'] = (staked_fee_gmx_tracker.functions.stakedAmounts(account).call() / 10**18) - ( df.at[index,'GMX staked'] + df.at[index,'esGMX staked'])
-    #     df.at[index, 'GLP in wallet'] = glp.functions.balanceOf(account).call() / 10**18
-    #     df.at[index,'GLP staked'] = df.at[index, 'GLP in wallet']
-    #     esgmx1 = gmx_vester.functions.getMaxVestableAmount(account).call()
-    #     df.at[index,'esGMX earned from GMX/esGMX/MPs'] = esgmx1 / 10**18
-    #     df.at[index,'GMX needed to vest'] = gmx_vester.functions.getPairAmount(account,esgmx1).call() / 10**18
-    #     esgmx2 = glp_vester.functions.getMaxVestableAmount(account).call()
-    #     df.at[index,'esGMX earned from GLP'] = esgmx2 / 10**18
-    #     df.at[index,'GLP needed to vest'] = glp_vester.functions.getPairAmount(account, esgmx2).call() / 10**18
-
     with ThreadPoolExecutor(max_workers=NUM_PROCESSES) as executor:
         # Submitting tasks to the executor
-        future_to_account = {executor.submit(fetch_account_data, account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester,contract_addresses,helper_contracts): account for account in eoa_addresses}
+        future_to_account = {executor.submit(fetch_account_data, account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester,contract_addresses,helper_contracts,multicall): account for account in eoa_addresses}
 
         # Using tqdm to display progress
         for future in tqdm(as_completed(future_to_account), total=len(eoa_addresses), desc="Fetching accounts data"):
