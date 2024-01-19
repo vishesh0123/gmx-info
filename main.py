@@ -1,12 +1,10 @@
 from web3 import Web3
 import pandas as pd
-from multiprocessing import Pool
-from tqdm.contrib.concurrent import process_map
-import itertools
 from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor , as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from eth_abi import abi
-from abi_data import gmx_abi , staked_gmx_tracker_abi , gmx_vester_abi , multicall_abi
+from abi_data import gmx_abi, staked_gmx_tracker_abi, gmx_vester_abi, multicall_abi
+import itertools
 
 GMX_ARBITRUM = "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a"
 ESGMX_ARBITRUM = "0xf42Ae1D54fd613C9bb14810b0588FaAa09a426cA"
@@ -77,15 +75,18 @@ def create_log_filter_params(contract_address, start_block, end_block, event_sig
         "topics": [event_signature],
     }
 
-def fetch_logs_for_range(args):
-    range_info, rpc_url, contract_addresses = args
+def fetch_logs_for_range(range_info, rpc_url, contract_addresses):
     web3 = initialize_web3_connection(rpc_url)
     start_block, end_block = range_info
     all_logs = []
     for address in contract_addresses:
         filter_params = create_log_filter_params(address, start_block, end_block, TRANSFER_EVENT_SIGNATURE)
-        logs = web3.eth.get_logs(filter_params)
-        all_logs.extend(logs)
+        try:
+            logs = web3.eth.get_logs(filter_params)
+            all_logs.extend(logs)
+        except Exception as e:
+            print(f"Error fetching logs for range {start_block}-{end_block}: {str(e)}")
+            # Optionally, implement retry logic here
     return all_logs
 
 def divide_into_chunks(start_block, end_block, chunk_size):
@@ -182,52 +183,61 @@ def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_
 
 
 if __name__ == "__main__":
-    network_name,rpc_url, contract_addresses,helper_contracts,deployment_block = choose_network()
+    # Choose network and initialize variables
+    network_name, rpc_url, contract_addresses, helper_contracts, deployment_block = choose_network()
     latest_block_number = initialize_web3_connection(rpc_url).eth.block_number
-    # latest_block_number = 147903 + 130
     block_ranges = divide_into_chunks(deployment_block, latest_block_number, BLOCK_RANGE_LIMIT)
-    args = [(range_info, rpc_url, contract_addresses) for range_info in block_ranges]
-    chunksize = 20
 
-    all_logs = process_map(fetch_logs_for_range, args, chunksize=chunksize, max_workers=NUM_PROCESSES)
+    # Fetch logs concurrently using ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=NUM_PROCESSES) as executor:
+        # Submitting tasks to the executor for fetching logs
+        future_to_range = {executor.submit(fetch_logs_for_range, range_info, rpc_url, contract_addresses): range_info for range_info in block_ranges}
+        all_logs = []
+        for future in tqdm(as_completed(future_to_range), total=len(block_ranges), desc="Fetching logs"):
+            range_info = future_to_range[future]
+            try:
+                range_logs = future.result()
+                all_logs.extend(range_logs)
+            except Exception as e:
+                print(f"Error processing logs for range {range_info}: {str(e)}")
+
+    # Flatten the list of logs and extract unique addresses
     all_logs_flat = list(itertools.chain(*all_logs))
     unique_to_addresses = extract_to_addresses(all_logs_flat)
 
+    # Connect to Web3 and set up contracts
     web3 = initialize_web3_connection(rpc_url)
-    
     gmx = web3.eth.contract(address=contract_addresses[0], abi=gmx_abi)
-    staked_gmx_tracker = web3.eth.contract(address=helper_contracts[0],abi=staked_gmx_tracker_abi)
-    esgmx = web3.eth.contract(address=helper_contracts[1],abi=gmx_abi)
-    glp = web3.eth.contract(address=contract_addresses[3],abi=gmx_abi)
-    staked_fee_gmx_tracker = web3.eth.contract(address=helper_contracts[2],abi=staked_gmx_tracker_abi)
-    bonus_gmx_tracker = web3.eth.contract(address=helper_contracts[3],abi=staked_gmx_tracker_abi)
-    gmx_vester = web3.eth.contract(address=helper_contracts[4],abi=gmx_vester_abi)
-    glp_vester = web3.eth.contract(address=helper_contracts[5],abi=gmx_vester_abi)
-    multicall = web3.eth.contract(address=helper_contracts[6],abi=multicall_abi)
+    staked_gmx_tracker = web3.eth.contract(address=helper_contracts[0], abi=staked_gmx_tracker_abi)
+    esgmx = web3.eth.contract(address=helper_contracts[1], abi=gmx_abi)
+    glp = web3.eth.contract(address=contract_addresses[3], abi=gmx_abi)
+    staked_fee_gmx_tracker = web3.eth.contract(address=helper_contracts[2], abi=staked_gmx_tracker_abi)
+    bonus_gmx_tracker = web3.eth.contract(address=helper_contracts[3], abi=staked_gmx_tracker_abi)
+    gmx_vester = web3.eth.contract(address=helper_contracts[4], abi=gmx_vester_abi)
+    glp_vester = web3.eth.contract(address=helper_contracts[5], abi=gmx_vester_abi)
+    multicall = web3.eth.contract(address=helper_contracts[6], abi=multicall_abi)
 
-    print(f'Found {len(unique_to_addresses)} Unique addresses')
-
-    df = pd.DataFrame(columns=['account', 'GMX in wallet', 'GMX staked', 'esGMX in wallet', 'esGMX staked', 'GLP in wallet', 'GLP staked', 'MP in wallet', 'MP staked','esGMX earned from GMX/esGMX/MPs', 'GMX needed to vest', 'esGMX earned from GLP','GLP needed to vest'])
-
+    # Prepare DataFrame for account data
+    df = pd.DataFrame(columns=['account', 'GMX in wallet', 'GMX staked', 'esGMX in wallet', 'esGMX staked', 'GLP in wallet', 'GLP staked', 'MP in wallet', 'MP staked', 'esGMX earned from GMX/esGMX/MPs', 'GMX needed to vest', 'esGMX earned from GLP', 'GLP needed to vest'])
     df['account'] = unique_to_addresses
 
+    # Fetch account data concurrently
     with ThreadPoolExecutor(max_workers=NUM_PROCESSES) as executor:
-        # Submitting tasks to the executor
-        future_to_account = {executor.submit(fetch_account_data, account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester,contract_addresses,helper_contracts,multicall): account for account in unique_to_addresses}
-
-        # Using tqdm to display progress
+        future_to_account = {executor.submit(fetch_account_data, account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester, contract_addresses, helper_contracts, multicall): account for account in unique_to_addresses}
         for future in tqdm(as_completed(future_to_account), total=len(unique_to_addresses), desc="Fetching accounts data"):
             account = future_to_account[future]
             try:
                 account_data = future.result()
                 if account_data:
-                    # Find the index for the current account and update the DataFrame
                     index = df[df['account'] == account].index[0]
                     for key, value in account_data.items():
                         df.at[index, key] = value
             except Exception as e:
                 print(f"Error processing data for account {account}: {str(e)}")
 
-    df.to_csv(f'gmx_accounts_{network_name}_{latest_block_number}.csv', index=False)
-    print(f'CSV file created: gmx_accounts_{network_name}_{latest_block_number}.csv')
+    # Save the data to a CSV file
+    csv_filename = f'gmx_accounts_{network_name}_{latest_block_number}.csv'
+    df.to_csv(csv_filename, index=False)
+    print(f'CSV file created: {csv_filename}')
+
 
