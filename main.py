@@ -7,6 +7,8 @@ from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor , as_completed
 from eth_abi import abi
 from abi_data import gmx_abi , staked_gmx_tracker_abi , gmx_vester_abi , multicall_abi
+import logging
+import time
 
 GMX_ARBITRUM = "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a"
 ESGMX_ARBITRUM = "0xf42Ae1D54fd613C9bb14810b0588FaAa09a426cA"
@@ -37,8 +39,8 @@ GMX_AVALANCHE_DEPLOYMENT_BLOCK = 8352150
 
 TRANSFER_EVENT_SIGNATURE = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 BLOCK_RANGE_LIMIT = 9999
-NUM_PROCESSES = 4
-RPC_ARBITRUM="https://arb-mainnet.g.alchemy.com/v2/VEqctR81OuSHJgt9YHNUaCR64LmPFpIK"
+NUM_PROCESSES = 2
+RPC_ARBITRUM="https://arb-mainnet.g.alchemy.com/v2/gv37D3QuLk_vT2N2opLgMt7I7MM24aRO"
 RPC_AVALANCHE="https://avalanche-mainnet.infura.io/v3/2228b0132c8e468ca39f6b8744215656"
 
 def choose_network():
@@ -77,15 +79,28 @@ def create_log_filter_params(contract_address, start_block, end_block, event_sig
         "topics": [event_signature],
     }
 
-def fetch_logs_for_range(args):
+def fetch_logs_for_range(args, max_retries=3, initial_wait=1):
     range_info, rpc_url, contract_addresses = args
     web3 = initialize_web3_connection(rpc_url)
     start_block, end_block = range_info
     all_logs = []
+    
     for address in contract_addresses:
-        filter_params = create_log_filter_params(address, start_block, end_block, TRANSFER_EVENT_SIGNATURE)
-        logs = web3.eth.get_logs(filter_params)
-        all_logs.extend(logs)
+        retry_count = 0
+        while retry_count < max_retries:
+            try:
+                filter_params = create_log_filter_params(address, start_block, end_block, TRANSFER_EVENT_SIGNATURE)
+                logs = web3.eth.get_logs(filter_params)
+                all_logs.extend(logs)
+                break  # Break the loop if the operation is successful
+            except Exception as e:
+                logging.error(f"Error fetching logs: {e}")
+                retry_count += 1
+                time.sleep(initial_wait * 2 ** retry_count)  # Exponential backoff
+
+        if retry_count == max_retries:
+            logging.error(f"Failed to fetch logs after {max_retries} attempts.")
+
     return all_logs
 
 def divide_into_chunks(start_block, end_block, chunk_size):
