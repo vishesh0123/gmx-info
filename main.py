@@ -38,7 +38,7 @@ GMX_AVALANCHE_DEPLOYMENT_BLOCK = 8352150
 TRANSFER_EVENT_SIGNATURE = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 BLOCK_RANGE_LIMIT = 9999
 NUM_PROCESSES = 4
-RPC_ARBITRUM="https://arb-mainnet.g.alchemy.com/v2/GCYsGX1wP9QOpItP7s4o5mqfCbnLHWjr"
+RPC_ARBITRUM="https://arbitrum-mainnet.infura.io/v3/36491984bc084dac990865ea245d3c2c"
 RPC_AVALANCHE="https://avalanche-mainnet.infura.io/v3/2228b0132c8e468ca39f6b8744215656"
 
 def choose_network():
@@ -184,6 +184,7 @@ def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_
 if __name__ == "__main__":
     network_name,rpc_url, contract_addresses,helper_contracts,deployment_block = choose_network()
     latest_block_number = initialize_web3_connection(rpc_url).eth.block_number
+    # latest_block_number = 147903 + 130
     block_ranges = divide_into_chunks(deployment_block, latest_block_number, BLOCK_RANGE_LIMIT)
     args = [(range_info, rpc_url, contract_addresses) for range_info in block_ranges]
     chunksize = 20
