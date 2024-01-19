@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from eth_abi import abi
 from abi_data import gmx_abi, staked_gmx_tracker_abi, gmx_vester_abi, multicall_abi
 import itertools
+import time
 
 GMX_ARBITRUM = "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a"
 ESGMX_ARBITRUM = "0xf42Ae1D54fd613C9bb14810b0588FaAa09a426cA"
@@ -75,18 +76,25 @@ def create_log_filter_params(contract_address, start_block, end_block, event_sig
         "topics": [event_signature],
     }
 
-def fetch_logs_for_range(range_info, rpc_url, contract_addresses):
+def fetch_logs_for_range(range_info, rpc_url, contract_addresses, max_retries=5, backoff_factor=1.5):
     web3 = initialize_web3_connection(rpc_url)
     start_block, end_block = range_info
     all_logs = []
-    for address in contract_addresses:
-        filter_params = create_log_filter_params(address, start_block, end_block, TRANSFER_EVENT_SIGNATURE)
+    retries = 0
+    while retries < max_retries:
         try:
-            logs = web3.eth.get_logs(filter_params)
-            all_logs.extend(logs)
+            for address in contract_addresses:
+                filter_params = create_log_filter_params(address, start_block, end_block, TRANSFER_EVENT_SIGNATURE)
+                logs = web3.eth.get_logs(filter_params)
+                all_logs.extend(logs)
+            return all_logs
         except Exception as e:
-            print(f"Error fetching logs for range {start_block}-{end_block}: {str(e)}")
-            # Optionally, implement retry logic here
+            retries += 1
+            sleep_time = backoff_factor ** retries
+            print(f"Error fetching logs for range {start_block}-{end_block}: {str(e)}. Retrying in {sleep_time} seconds...")
+            time.sleep(sleep_time)
+
+    print(f"Failed to fetch logs for range {start_block}-{end_block} after {max_retries} retries.")
     return all_logs
 
 def divide_into_chunks(start_block, end_block, chunk_size):
