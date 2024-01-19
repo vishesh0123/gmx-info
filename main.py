@@ -221,6 +221,9 @@ if __name__ == "__main__":
     df = pd.DataFrame(columns=['account', 'GMX in wallet', 'GMX staked', 'esGMX in wallet', 'esGMX staked', 'GLP in wallet', 'GLP staked', 'MP in wallet', 'MP staked', 'esGMX earned from GMX/esGMX/MPs', 'GMX needed to vest', 'esGMX earned from GLP', 'GLP needed to vest'])
     df['account'] = unique_to_addresses
 
+    csv_filename = f'gmx_accounts_{network_name}_{latest_block_number}.csv'
+    df.to_csv(csv_filename, index=False)
+
     # Fetch account data concurrently
     with ThreadPoolExecutor(max_workers=NUM_PROCESSES) as executor:
         future_to_account = {executor.submit(fetch_account_data, account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester, contract_addresses, helper_contracts, multicall): account for account in unique_to_addresses}
