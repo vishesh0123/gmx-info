@@ -4,9 +4,9 @@ from multiprocessing import Pool
 from tqdm.contrib.concurrent import process_map
 import itertools
 from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor , as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from eth_abi import abi
-from abi_data import gmx_abi , staked_gmx_tracker_abi , gmx_vester_abi , multicall_abi
+from abi_data import gmx_abi, staked_gmx_tracker_abi, gmx_vester_abi, multicall_abi
 import logging
 import time
 
@@ -20,56 +20,66 @@ SGMX_ARBITRUM = "0x908C4D94D34924765f1eDc22A1DD098397c59dD4"
 SGLP_ARBITRUM = "0x1aDDD80E6039594eE970E5872D247bf0414C8903"
 GMX_VESTER_ARBITRUM = "0x199070DDfd1CFb69173aa2F7e20906F26B363004"
 GLP_VESTER_ARBITRUM = "0xA75287d2f8b217273E7FCD7E86eF07D33972042E"
-MULTICALL_ARBITRUM= "0xcA11bde05977b3631167028862bE2a173976CA11"
+MULTICALL_ARBITRUM = "0xcA11bde05977b3631167028862bE2a173976CA11"
 GMX_ARBITRUM_DEPLOYMENT_BLOCK = 147903
 
 GMX_AVALANCHE = "0x62edc0692BD897D2295872a9FFCac5425011c661"
 ESGMX_AVALANCHE = "0xFf1489227BbAAC61a9209A08929E4c2a526DdD17"
-STAKED_GMX_TRACKER_AVALANCHE="0x2bD10f8E93B3669b6d42E74eEedC65dd1B0a1342"
-FEE_GMX_TRACKER_AVALANCHE='0x4d268a7d4C16ceB5a606c173Bd974984343fea13'
-BONUS_GMX_TRACKER_AVALANCHE="0x908C4D94D34924765f1eDc22A1DD098397c59dD4"
+STAKED_GMX_TRACKER_AVALANCHE = "0x2bD10f8E93B3669b6d42E74eEedC65dd1B0a1342"
+FEE_GMX_TRACKER_AVALANCHE = "0x4d268a7d4C16ceB5a606c173Bd974984343fea13"
+BONUS_GMX_TRACKER_AVALANCHE = "0x908C4D94D34924765f1eDc22A1DD098397c59dD4"
 GLP_AVALANCHE = "0x9e295B5B976a184B14aD8cd72413aD846C299660"
 SGMX_AVALANCHE = "0x4d268a7d4C16ceB5a606c173Bd974984343fea13"
 SGLP_AVALANCHE = "0xaE64d55a6f09E4263421737397D1fdFA71896a69"
-GMX_VESTER_AVALANCHE="0x472361d3cA5F49c8E633FB50385BfaD1e018b445"
-GLP_VESTER_AVALANCHE="0x62331A7Bd1dfB3A7642B7db50B5509E57CA3154A"
-MULTICALL_AVALANCHE="0xcA11bde05977b3631167028862bE2a173976CA11"
+GMX_VESTER_AVALANCHE = "0x472361d3cA5F49c8E633FB50385BfaD1e018b445"
+GLP_VESTER_AVALANCHE = "0x62331A7Bd1dfB3A7642B7db50B5509E57CA3154A"
+MULTICALL_AVALANCHE = "0xcA11bde05977b3631167028862bE2a173976CA11"
 GMX_AVALANCHE_DEPLOYMENT_BLOCK = 8352150
 
 
 TRANSFER_EVENT_SIGNATURE = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 BLOCK_RANGE_LIMIT = 9999
 NUM_PROCESSES = 2
-RPC_ARBITRUM="https://arb-mainnet.g.alchemy.com/v2/gv37D3QuLk_vT2N2opLgMt7I7MM24aRO"
-RPC_AVALANCHE="https://avalanche-mainnet.infura.io/v3/2228b0132c8e468ca39f6b8744215656"
+RPC_ARBITRUM = "https://arb-mainnet.g.alchemy.com/v2/gv37D3QuLk_vT2N2opLgMt7I7MM24aRO"
+RPC_AVALANCHE = "https://avalanche-mainnet.infura.io/v3/2228b0132c8e468ca39f6b8744215656"
+
 
 def choose_network():
-    print("Select a network:")
-    print("1: Arbitrum")
-    print("2: Avalanche")
-    while True:
-        choice = input("Enter your choice (1 for Arbitrum, 2 for Avalanche): ")
-        if choice == "1":
-            return (
-                "arbitrum",
-                RPC_ARBITRUM,
-                [GMX_ARBITRUM, GLP_ARBITRUM, SGMX_ARBITRUM, SGLP_ARBITRUM],
-                [STAKED_GMX_TRACKER_ARBITRUM,ESGMX_ARBITRUM,FEE_GMX_TRACKER_ARBITRUM,BONUS_GMX_TRACKER_ARBITRUM,GMX_VESTER_ARBITRUM,GLP_VESTER_ARBITRUM,MULTICALL_ARBITRUM],
-                GMX_ARBITRUM_DEPLOYMENT_BLOCK,
-            )
-        elif choice == "2":
-            return (
-                "avalanche",
-                RPC_AVALANCHE,
-                [GMX_AVALANCHE, GLP_AVALANCHE, SGMX_AVALANCHE, SGLP_AVALANCHE],
-                [STAKED_GMX_TRACKER_AVALANCHE,ESGMX_AVALANCHE,FEE_GMX_TRACKER_AVALANCHE,BONUS_GMX_TRACKER_AVALANCHE,GMX_VESTER_AVALANCHE,GLP_VESTER_AVALANCHE,MULTICALL_AVALANCHE],
-                GMX_AVALANCHE_DEPLOYMENT_BLOCK,
-            )
-        else:
-            print("Invalid choice. Please enter 1 or 2.")
+    # print("Select a network:")
+    # print("1: Arbitrum")
+    # print("2: Avalanche")
+    # while True:
+    #     choice = input("Enter your choice (1 for Arbitrum, 2 for Avalanche): ")
+    #     if choice == "1":
+    #         return (
+    #             "arbitrum",
+    #             RPC_ARBITRUM,
+    #             [GMX_ARBITRUM, GLP_ARBITRUM, SGMX_ARBITRUM, SGLP_ARBITRUM],
+    #             [STAKED_GMX_TRACKER_ARBITRUM,ESGMX_ARBITRUM,FEE_GMX_TRACKER_ARBITRUM,BONUS_GMX_TRACKER_ARBITRUM,GMX_VESTER_ARBITRUM,GLP_VESTER_ARBITRUM,MULTICALL_ARBITRUM],
+    #             GMX_ARBITRUM_DEPLOYMENT_BLOCK,
+    #         )
+    #     elif choice == "2":
+    #         return (
+    #             "avalanche",
+    #             RPC_AVALANCHE,
+    #             [GMX_AVALANCHE, GLP_AVALANCHE, SGMX_AVALANCHE, SGLP_AVALANCHE],
+    #             [STAKED_GMX_TRACKER_AVALANCHE,ESGMX_AVALANCHE,FEE_GMX_TRACKER_AVALANCHE,BONUS_GMX_TRACKER_AVALANCHE,GMX_VESTER_AVALANCHE,GLP_VESTER_AVALANCHE,MULTICALL_AVALANCHE],
+    #             GMX_AVALANCHE_DEPLOYMENT_BLOCK,
+    #         )
+    #     else:
+    #         print("Invalid choice. Please enter 1 or 2.")
+    return (
+        "arbitrum",
+        RPC_ARBITRUM,
+        [GMX_ARBITRUM, GLP_ARBITRUM, SGMX_ARBITRUM, SGLP_ARBITRUM],
+        [STAKED_GMX_TRACKER_ARBITRUM, ESGMX_ARBITRUM, FEE_GMX_TRACKER_ARBITRUM, BONUS_GMX_TRACKER_ARBITRUM, GMX_VESTER_ARBITRUM, GLP_VESTER_ARBITRUM, MULTICALL_ARBITRUM],
+        GMX_ARBITRUM_DEPLOYMENT_BLOCK,
+    )
+
 
 def initialize_web3_connection(rpc_url):
     return Web3(Web3.HTTPProvider(rpc_url))
+
 
 def create_log_filter_params(contract_address, start_block, end_block, event_signature):
     return {
@@ -79,12 +89,13 @@ def create_log_filter_params(contract_address, start_block, end_block, event_sig
         "topics": [event_signature],
     }
 
+
 def fetch_logs_for_range(args, max_retries=3, initial_wait=1):
     range_info, rpc_url, contract_addresses = args
     web3 = initialize_web3_connection(rpc_url)
     start_block, end_block = range_info
     all_logs = []
-    
+
     for address in contract_addresses:
         retry_count = 0
         while retry_count < max_retries:
@@ -96,12 +107,13 @@ def fetch_logs_for_range(args, max_retries=3, initial_wait=1):
             except Exception as e:
                 logging.error(f"Error fetching logs: {e}")
                 retry_count += 1
-                time.sleep(initial_wait * 2 ** retry_count)  # Exponential backoff
+                time.sleep(initial_wait * 2**retry_count)  # Exponential backoff
 
         if retry_count == max_retries:
             logging.error(f"Failed to fetch logs after {max_retries} attempts.")
 
     return all_logs
+
 
 def divide_into_chunks(start_block, end_block, chunk_size):
     ranges = []
@@ -110,6 +122,7 @@ def divide_into_chunks(start_block, end_block, chunk_size):
         ranges.append((start_block, batch_end_block))
         start_block = batch_end_block + 1
     return ranges
+
 
 def extract_to_addresses(logs):
     to_addresses = set()
@@ -123,15 +136,15 @@ def extract_to_addresses(logs):
 def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester, contract_addresses, helper_contracts, multicall, max_retries=10, initial_wait=1):
     try:
         calls = [
-            {"target": contract_addresses[0], "callData": gmx.encodeABI(fn_name='balanceOf', args=[account])},
-            {"target": helper_contracts[0], "callData": staked_gmx_tracker.encodeABI(fn_name='depositBalances', args=[account, contract_addresses[0]])},
-            {"target": helper_contracts[1], "callData": esgmx.encodeABI(fn_name='balanceOf', args=[account])},
-            {"target": helper_contracts[0], "callData": staked_gmx_tracker.encodeABI(fn_name='depositBalances', args=[account, helper_contracts[1]])},
-            {"target": helper_contracts[3], "callData": bonus_gmx_tracker.encodeABI(fn_name='claimable', args=[account])},
-            {"target": helper_contracts[2], "callData": staked_fee_gmx_tracker.encodeABI(fn_name='stakedAmounts', args=[account])},
-            {"target": contract_addresses[3], "callData": glp.encodeABI(fn_name='balanceOf', args=[account])},
-            {"target": helper_contracts[4], "callData": gmx_vester.encodeABI(fn_name='getMaxVestableAmount', args=[account])},
-            {"target": helper_contracts[5], "callData": glp_vester.encodeABI(fn_name='getMaxVestableAmount', args=[account])},
+            {"target": contract_addresses[0], "callData": gmx.encodeABI(fn_name="balanceOf", args=[account])},
+            {"target": helper_contracts[0], "callData": staked_gmx_tracker.encodeABI(fn_name="depositBalances", args=[account, contract_addresses[0]])},
+            {"target": helper_contracts[1], "callData": esgmx.encodeABI(fn_name="balanceOf", args=[account])},
+            {"target": helper_contracts[0], "callData": staked_gmx_tracker.encodeABI(fn_name="depositBalances", args=[account, helper_contracts[1]])},
+            {"target": helper_contracts[3], "callData": bonus_gmx_tracker.encodeABI(fn_name="claimable", args=[account])},
+            {"target": helper_contracts[2], "callData": staked_fee_gmx_tracker.encodeABI(fn_name="stakedAmounts", args=[account])},
+            {"target": contract_addresses[3], "callData": glp.encodeABI(fn_name="balanceOf", args=[account])},
+            {"target": helper_contracts[4], "callData": gmx_vester.encodeABI(fn_name="getMaxVestableAmount", args=[account])},
+            {"target": helper_contracts[5], "callData": glp_vester.encodeABI(fn_name="getMaxVestableAmount", args=[account])},
         ]
 
         # First multicall with retry mechanism
@@ -144,7 +157,7 @@ def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_
             except Exception as e:
                 logging.error(f"Error in first multicall for account {account}: {e}")
                 retry_count += 1
-                time.sleep(initial_wait * 2 ** retry_count)
+                time.sleep(initial_wait * 2**retry_count)
 
         if retry_count == max_retries:
             logging.error(f"Failed to aggregate calls after {max_retries} attempts for account {account}")
@@ -163,8 +176,8 @@ def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_
 
         # Setup for the second set of multicall
         calls1 = [
-            {"target": helper_contracts[4], "callData": gmx_vester.encodeABI(fn_name='getPairAmount', args=[account, esgmx1])},
-            {"target": helper_contracts[5], "callData": glp_vester.encodeABI(fn_name='getPairAmount', args=[account, esgmx2])},
+            {"target": helper_contracts[4], "callData": gmx_vester.encodeABI(fn_name="getPairAmount", args=[account, esgmx1])},
+            {"target": helper_contracts[5], "callData": glp_vester.encodeABI(fn_name="getPairAmount", args=[account, esgmx2])},
         ]
 
         # Second multicall with retry mechanism
@@ -177,7 +190,7 @@ def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_
             except Exception as e:
                 logging.error(f"Error in second multicall for account {account}: {e}")
                 retry_count += 1
-                time.sleep(initial_wait * 2 ** retry_count)
+                time.sleep(initial_wait * 2**retry_count)
 
         if retry_count == max_retries:
             logging.error(f"Failed to aggregate calls1 after {max_retries} attempts for account {account}")
@@ -189,19 +202,19 @@ def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_
 
         # Constructing the data dictionary
         data = {
-            'account': account,
-            'GMX in wallet': gmx_wallet,
-            'GMX staked': gmx_staked,
-            'esGMX in wallet': esgmx_wallet,
-            'esGMX staked': esgmx_staked,
-            'MP in wallet': mp_wallet,
-            'MP staked': mp_staked - (gmx_staked + esgmx_staked),
-            'GLP in wallet': glp_wallet,
-            'GLP staked': glp_wallet,
-            'esGMX earned from GMX/esGMX/MPs': esgmx1 / 10**18,
-            'GMX needed to vest': gmx_to_vest,
-            'esGMX earned from GLP': esgmx2 / 10**18,
-            'GLP needed to vest': glp_to_vest
+            "account": account,
+            "GMX in wallet": gmx_wallet,
+            "GMX staked": gmx_staked,
+            "esGMX in wallet": esgmx_wallet,
+            "esGMX staked": esgmx_staked,
+            "MP in wallet": mp_wallet,
+            "MP staked": mp_staked - (gmx_staked + esgmx_staked),
+            "GLP in wallet": glp_wallet,
+            "GLP staked": glp_wallet,
+            "esGMX earned from GMX/esGMX/MPs": esgmx1 / 10**18,
+            "GMX needed to vest": gmx_to_vest,
+            "esGMX earned from GLP": esgmx2 / 10**18,
+            "GLP needed to vest": glp_to_vest,
         }
         return data
 
@@ -211,10 +224,9 @@ def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_
 
 
 if __name__ == "__main__":
-    network_name,rpc_url, contract_addresses,helper_contracts,deployment_block = choose_network()
-    # latest_block_number = initialize_web3_connection(rpc_url).eth.block_number
-    latest_block_number = 147903 + 121
-    
+    network_name, rpc_url, contract_addresses, helper_contracts, deployment_block = choose_network()
+    latest_block_number = initialize_web3_connection(rpc_url).eth.block_number
+
     block_ranges = divide_into_chunks(deployment_block, latest_block_number, BLOCK_RANGE_LIMIT)
     args = [(range_info, rpc_url, contract_addresses) for range_info in block_ranges]
     chunksize = 20
@@ -224,26 +236,26 @@ if __name__ == "__main__":
     unique_to_addresses = extract_to_addresses(all_logs_flat)
 
     web3 = initialize_web3_connection(rpc_url)
-    
+
     gmx = web3.eth.contract(address=contract_addresses[0], abi=gmx_abi)
-    staked_gmx_tracker = web3.eth.contract(address=helper_contracts[0],abi=staked_gmx_tracker_abi)
-    esgmx = web3.eth.contract(address=helper_contracts[1],abi=gmx_abi)
-    glp = web3.eth.contract(address=contract_addresses[3],abi=gmx_abi)
-    staked_fee_gmx_tracker = web3.eth.contract(address=helper_contracts[2],abi=staked_gmx_tracker_abi)
-    bonus_gmx_tracker = web3.eth.contract(address=helper_contracts[3],abi=staked_gmx_tracker_abi)
-    gmx_vester = web3.eth.contract(address=helper_contracts[4],abi=gmx_vester_abi)
-    glp_vester = web3.eth.contract(address=helper_contracts[5],abi=gmx_vester_abi)
-    multicall = web3.eth.contract(address=helper_contracts[6],abi=multicall_abi)
+    staked_gmx_tracker = web3.eth.contract(address=helper_contracts[0], abi=staked_gmx_tracker_abi)
+    esgmx = web3.eth.contract(address=helper_contracts[1], abi=gmx_abi)
+    glp = web3.eth.contract(address=contract_addresses[3], abi=gmx_abi)
+    staked_fee_gmx_tracker = web3.eth.contract(address=helper_contracts[2], abi=staked_gmx_tracker_abi)
+    bonus_gmx_tracker = web3.eth.contract(address=helper_contracts[3], abi=staked_gmx_tracker_abi)
+    gmx_vester = web3.eth.contract(address=helper_contracts[4], abi=gmx_vester_abi)
+    glp_vester = web3.eth.contract(address=helper_contracts[5], abi=gmx_vester_abi)
+    multicall = web3.eth.contract(address=helper_contracts[6], abi=multicall_abi)
 
-    print(f'Found {len(unique_to_addresses)} Unique addresses')
+    print(f"Found {len(unique_to_addresses)} Unique addresses")
 
-    df = pd.DataFrame(columns=['account', 'GMX in wallet', 'GMX staked', 'esGMX in wallet', 'esGMX staked', 'GLP in wallet', 'GLP staked', 'MP in wallet', 'MP staked','esGMX earned from GMX/esGMX/MPs', 'GMX needed to vest', 'esGMX earned from GLP','GLP needed to vest'])
+    df = pd.DataFrame(columns=["account", "GMX in wallet", "GMX staked", "esGMX in wallet", "esGMX staked", "GLP in wallet", "GLP staked", "MP in wallet", "MP staked", "esGMX earned from GMX/esGMX/MPs", "GMX needed to vest", "esGMX earned from GLP", "GLP needed to vest"])
 
-    df['account'] = unique_to_addresses
+    df["account"] = unique_to_addresses
 
     with ThreadPoolExecutor(max_workers=NUM_PROCESSES) as executor:
         # Submitting tasks to the executor
-        future_to_account = {executor.submit(fetch_account_data, account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester,contract_addresses,helper_contracts,multicall): account for account in unique_to_addresses}
+        future_to_account = {executor.submit(fetch_account_data, account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester, contract_addresses, helper_contracts, multicall): account for account in unique_to_addresses}
 
         # Using tqdm to display progress
         for future in tqdm(as_completed(future_to_account), total=len(unique_to_addresses), desc="Fetching accounts data"):
@@ -252,11 +264,11 @@ if __name__ == "__main__":
                 account_data = future.result()
                 if account_data:
                     # Find the index for the current account and update the DataFrame
-                    index = df[df['account'] == account].index[0]
+                    index = df[df["account"] == account].index[0]
                     for key, value in account_data.items():
                         df.at[index, key] = value
             except Exception as e:
                 print(f"Error processing data for account {account}: {str(e)}")
 
-    df.to_csv(f'gmx_accounts_{network_name}_{latest_block_number}.csv', index=False)
-    print(f'CSV file created: gmx_accounts_{network_name}_{latest_block_number}.csv')
+    df.to_csv(f"gmx_accounts_{network_name}_{latest_block_number}.csv", index=False)
+    print(f"CSV file created: gmx_accounts_{network_name}_{latest_block_number}.csv")

@@ -247,9 +247,7 @@ gmx_abi = [
         "type": "function",
     },
     {
-        "inputs": [
-            {"internalType": "bool", "name": "_inPrivateTransferMode", "type": "bool"}
-        ],
+        "inputs": [{"internalType": "bool", "name": "_inPrivateTransferMode", "type": "bool"}],
         "name": "setInPrivateTransferMode",
         "outputs": [],
         "stateMutability": "nonpayable",
@@ -276,9 +274,7 @@ gmx_abi = [
         "type": "function",
     },
     {
-        "inputs": [
-            {"internalType": "address[]", "name": "_yieldTrackers", "type": "address[]"}
-        ],
+        "inputs": [{"internalType": "address[]", "name": "_yieldTrackers", "type": "address[]"}],
         "name": "setYieldTrackers",
         "outputs": [],
         "stateMutability": "nonpayable",
@@ -677,27 +673,21 @@ staked_gmx_tracker_abi = [
         "type": "function",
     },
     {
-        "inputs": [
-            {"internalType": "bool", "name": "_inPrivateClaimingMode", "type": "bool"}
-        ],
+        "inputs": [{"internalType": "bool", "name": "_inPrivateClaimingMode", "type": "bool"}],
         "name": "setInPrivateClaimingMode",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function",
     },
     {
-        "inputs": [
-            {"internalType": "bool", "name": "_inPrivateStakingMode", "type": "bool"}
-        ],
+        "inputs": [{"internalType": "bool", "name": "_inPrivateStakingMode", "type": "bool"}],
         "name": "setInPrivateStakingMode",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function",
     },
     {
-        "inputs": [
-            {"internalType": "bool", "name": "_inPrivateTransferMode", "type": "bool"}
-        ],
+        "inputs": [{"internalType": "bool", "name": "_inPrivateTransferMode", "type": "bool"}],
         "name": "setInPrivateTransferMode",
         "outputs": [],
         "stateMutability": "nonpayable",
@@ -1245,9 +1235,7 @@ gmx_vester_abi = [
         "type": "function",
     },
     {
-        "inputs": [
-            {"internalType": "bool", "name": "_hasMaxVestableAmount", "type": "bool"}
-        ],
+        "inputs": [{"internalType": "bool", "name": "_hasMaxVestableAmount", "type": "bool"}],
         "name": "setHasMaxVestableAmount",
         "outputs": [],
         "stateMutability": "nonpayable",
@@ -1474,22 +1462,16 @@ multicall_abi = [
         "type": "function",
     },
     {
-        "inputs": [
-            {"internalType": "uint256", "name": "blockNumber", "type": "uint256"}
-        ],
+        "inputs": [{"internalType": "uint256", "name": "blockNumber", "type": "uint256"}],
         "name": "getBlockHash",
-        "outputs": [
-            {"internalType": "bytes32", "name": "blockHash", "type": "bytes32"}
-        ],
+        "outputs": [{"internalType": "bytes32", "name": "blockHash", "type": "bytes32"}],
         "stateMutability": "view",
         "type": "function",
     },
     {
         "inputs": [],
         "name": "getBlockNumber",
-        "outputs": [
-            {"internalType": "uint256", "name": "blockNumber", "type": "uint256"}
-        ],
+        "outputs": [{"internalType": "uint256", "name": "blockNumber", "type": "uint256"}],
         "stateMutability": "view",
         "type": "function",
     },
@@ -1510,9 +1492,7 @@ multicall_abi = [
     {
         "inputs": [],
         "name": "getCurrentBlockDifficulty",
-        "outputs": [
-            {"internalType": "uint256", "name": "difficulty", "type": "uint256"}
-        ],
+        "outputs": [{"internalType": "uint256", "name": "difficulty", "type": "uint256"}],
         "stateMutability": "view",
         "type": "function",
     },
@@ -1526,9 +1506,7 @@ multicall_abi = [
     {
         "inputs": [],
         "name": "getCurrentBlockTimestamp",
-        "outputs": [
-            {"internalType": "uint256", "name": "timestamp", "type": "uint256"}
-        ],
+        "outputs": [{"internalType": "uint256", "name": "timestamp", "type": "uint256"}],
         "stateMutability": "view",
         "type": "function",
     },
@@ -1542,9 +1520,7 @@ multicall_abi = [
     {
         "inputs": [],
         "name": "getLastBlockHash",
-        "outputs": [
-            {"internalType": "bytes32", "name": "blockHash", "type": "bytes32"}
-        ],
+        "outputs": [{"internalType": "bytes32", "name": "blockHash", "type": "bytes32"}],
         "stateMutability": "view",
         "type": "function",
     },
