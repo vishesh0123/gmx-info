@@ -120,85 +120,101 @@ def extract_to_addresses(logs):
     return list(to_addresses)
 
 
-def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester,contract_addresses,helper_contracts,multicall):
+def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester, contract_addresses, helper_contracts, multicall, max_retries=10, initial_wait=1):
     try:
-        
-        calls =[]
-        gmx_wallet = gmx.encodeABI(fn_name='balanceOf',args=[account])
-        gmx_staked = staked_gmx_tracker.encodeABI(fn_name='depositBalances',args=[account,contract_addresses[0]])
-        esgmx_wallet = esgmx.encodeABI(fn_name='balanceOf',args=[account])
-        esgmx_staked = staked_gmx_tracker.encodeABI(fn_name='depositBalances',args=[account,helper_contracts[1]])
-        mp_wallet = bonus_gmx_tracker.encodeABI(fn_name='claimable',args=[account])
-        mp_staked = staked_fee_gmx_tracker.encodeABI(fn_name='stakedAmounts',args=[account])
-        glp_wallet = glp.encodeABI(fn_name='balanceOf',args=[account])
-        esgmx1 = gmx_vester.encodeABI(fn_name='getMaxVestableAmount',args=[account])
-        esgmx2 = glp_vester.encodeABI(fn_name='getMaxVestableAmount',args=[account])
-        
-        calls.append({"target":contract_addresses[0],"callData":gmx_wallet})
-        calls.append({"target":helper_contracts[0],"callData":gmx_staked})
-        calls.append({"target":helper_contracts[1],"callData":esgmx_wallet})
-        calls.append({"target":helper_contracts[0],"callData":esgmx_staked})
-        calls.append({"target":helper_contracts[3],"callData":mp_wallet})
-        calls.append({"target":helper_contracts[2],"callData":mp_staked})
-        calls.append({"target":contract_addresses[3],"callData":glp_wallet})
-        calls.append({"target":helper_contracts[4],"callData":esgmx1})
-        calls.append({"target":helper_contracts[5],"callData":esgmx2})
-        
-        
-        result = multicall.functions.aggregate(calls).call()
-        result = result[1]
+        calls = [
+            {"target": contract_addresses[0], "callData": gmx.encodeABI(fn_name='balanceOf', args=[account])},
+            {"target": helper_contracts[0], "callData": staked_gmx_tracker.encodeABI(fn_name='depositBalances', args=[account, contract_addresses[0]])},
+            {"target": helper_contracts[1], "callData": esgmx.encodeABI(fn_name='balanceOf', args=[account])},
+            {"target": helper_contracts[0], "callData": staked_gmx_tracker.encodeABI(fn_name='depositBalances', args=[account, helper_contracts[1]])},
+            {"target": helper_contracts[3], "callData": bonus_gmx_tracker.encodeABI(fn_name='claimable', args=[account])},
+            {"target": helper_contracts[2], "callData": staked_fee_gmx_tracker.encodeABI(fn_name='stakedAmounts', args=[account])},
+            {"target": contract_addresses[3], "callData": glp.encodeABI(fn_name='balanceOf', args=[account])},
+            {"target": helper_contracts[4], "callData": gmx_vester.encodeABI(fn_name='getMaxVestableAmount', args=[account])},
+            {"target": helper_contracts[5], "callData": glp_vester.encodeABI(fn_name='getMaxVestableAmount', args=[account])},
+        ]
 
-        gmx_wallet = (abi.decode(['uint256'],result[0]))[0] / 10**18
-        gmx_staked = (abi.decode(['uint256'],result[1]))[0] / 10**18
-        esgmx_wallet = (abi.decode(['uint256'],result[2]))[0] / 10**18
-        esgmx_staked = (abi.decode(['uint256'],result[3]))[0] / 10**18
-        mp_wallet = (abi.decode(['uint256'],result[4]))[0] / 10**18
-        mp_staked = (abi.decode(['uint256'],result[5]))[0] / 10**18
-        glp_wallet = (abi.decode(['uint256'],result[6]))[0] / 10**18
-        esgmx1 = (abi.decode(['uint256'],result[7]))[0]
-        esgmx2 = (abi.decode(['uint256'],result[8]))[0]
+        # First multicall with retry mechanism
+        result = None
+        retry_count = 0
+        while retry_count < max_retries:
+            try:
+                result = multicall.functions.aggregate(calls).call()
+                break
+            except Exception as e:
+                logging.error(f"Error in first multicall for account {account}: {e}")
+                retry_count += 1
+                time.sleep(initial_wait * 2 ** retry_count)
 
-        gmx_to_vest = gmx_vester.encodeABI(fn_name='getPairAmount',args=[account,esgmx1])
-        glp_to_vest = glp_vester.encodeABI(fn_name='getPairAmount',args=[account,esgmx2])
+        if retry_count == max_retries:
+            logging.error(f"Failed to aggregate calls after {max_retries} attempts for account {account}")
+            return None
 
-        calls1=[]
+        # Decoding results from the first multicall
+        gmx_wallet = int(result[1][0].hex(), 16) / 10**18
+        gmx_staked = int(result[1][1].hex(), 16) / 10**18
+        esgmx_wallet = int(result[1][2].hex(), 16) / 10**18
+        esgmx_staked = int(result[1][3].hex(), 16) / 10**18
+        mp_wallet = int(result[1][4].hex(), 16) / 10**18
+        mp_staked = int(result[1][5].hex(), 16) / 10**18
+        glp_wallet = int(result[1][6].hex(), 16) / 10**18
+        esgmx1 = int(result[1][7].hex(), 16)
+        esgmx2 = int(result[1][8].hex(), 16)
 
-        calls1.append({"target":helper_contracts[4],"callData":gmx_to_vest})
-        calls1.append({"target":helper_contracts[5],"callData":glp_to_vest})
+        # Setup for the second set of multicall
+        calls1 = [
+            {"target": helper_contracts[4], "callData": gmx_vester.encodeABI(fn_name='getPairAmount', args=[account, esgmx1])},
+            {"target": helper_contracts[5], "callData": glp_vester.encodeABI(fn_name='getPairAmount', args=[account, esgmx2])},
+        ]
 
-        result = multicall.functions.aggregate(calls1).call()
-        result = result[1]
+        # Second multicall with retry mechanism
+        result1 = None
+        retry_count = 0
+        while retry_count < max_retries:
+            try:
+                result1 = multicall.functions.aggregate(calls1).call()
+                break
+            except Exception as e:
+                logging.error(f"Error in second multicall for account {account}: {e}")
+                retry_count += 1
+                time.sleep(initial_wait * 2 ** retry_count)
 
-        gmx_to_vest = (abi.decode(['uint256'],result[0]))[0] / 10**18
-        glp_to_vest = (abi.decode(['uint256'],result[1]))[0] / 10**18
+        if retry_count == max_retries:
+            logging.error(f"Failed to aggregate calls1 after {max_retries} attempts for account {account}")
+            return None
 
+        # Decoding results from the second multicall
+        gmx_to_vest = int(result1[1][0].hex(), 16) / 10**18
+        glp_to_vest = int(result1[1][1].hex(), 16) / 10**18
 
-
-        
+        # Constructing the data dictionary
         data = {
             'account': account,
             'GMX in wallet': gmx_wallet,
-            'GMX staked':gmx_staked,
+            'GMX staked': gmx_staked,
             'esGMX in wallet': esgmx_wallet,
             'esGMX staked': esgmx_staked,
             'MP in wallet': mp_wallet,
             'MP staked': mp_staked - (gmx_staked + esgmx_staked),
             'GLP in wallet': glp_wallet,
             'GLP staked': glp_wallet,
-            'esGMX earned from GMX/esGMX/MPs':esgmx1 / 10**18,
+            'esGMX earned from GMX/esGMX/MPs': esgmx1 / 10**18,
             'GMX needed to vest': gmx_to_vest,
             'esGMX earned from GLP': esgmx2 / 10**18,
             'GLP needed to vest': glp_to_vest
         }
         return data
+
     except Exception as e:
-        print(f"Error fetching data for account {account}: {str(e)}")
+        logging.error(f"Error fetching data for account {account}: {e}")
         return None
 
 
 if __name__ == "__main__":
     network_name,rpc_url, contract_addresses,helper_contracts,deployment_block = choose_network()
-    latest_block_number = initialize_web3_connection(rpc_url).eth.block_number
+    # latest_block_number = initialize_web3_connection(rpc_url).eth.block_number
+    latest_block_number = 147903 + 121
+    
     block_ranges = divide_into_chunks(deployment_block, latest_block_number, BLOCK_RANGE_LIMIT)
     args = [(range_info, rpc_url, contract_addresses) for range_info in block_ranges]
     chunksize = 20
