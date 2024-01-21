@@ -1,6 +1,5 @@
 __pycache__
 config.json
-*.csv
 !data/.gitkeep
 .DS_Store
 abi/

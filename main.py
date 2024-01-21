@@ -253,6 +253,8 @@ if __name__ == "__main__":
 
     df["account"] = unique_to_addresses
 
+    df.to_csv(f"gmx_accounts_{network_name}.csv", index=False)
+
     with ThreadPoolExecutor(max_workers=NUM_PROCESSES) as executor:
         # Submitting tasks to the executor
         future_to_account = {executor.submit(fetch_account_data, account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester, contract_addresses, helper_contracts, multicall): account for account in unique_to_addresses}
