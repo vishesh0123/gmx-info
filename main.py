@@ -1,14 +1,12 @@
 from web3 import Web3
 import pandas as pd
-from multiprocessing import Pool
-from tqdm.contrib.concurrent import process_map
-import itertools
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from eth_abi import abi
 from abi_data import gmx_abi, staked_gmx_tracker_abi, gmx_vester_abi, multicall_abi
 import logging
 import time
+import argparse
 
 GMX_ARBITRUM = "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a"
 ESGMX_ARBITRUM = "0xf42Ae1D54fd613C9bb14810b0588FaAa09a426cA"
@@ -68,70 +66,17 @@ def choose_network():
     #         )
     #     else:
     #         print("Invalid choice. Please enter 1 or 2.")
-
     return (
-        "avalanche",
-        RPC_AVALANCHE,
-        [GMX_AVALANCHE, GLP_AVALANCHE, SGMX_AVALANCHE, SGLP_AVALANCHE],
-        [STAKED_GMX_TRACKER_AVALANCHE, ESGMX_AVALANCHE, FEE_GMX_TRACKER_AVALANCHE, BONUS_GMX_TRACKER_AVALANCHE, GMX_VESTER_AVALANCHE, GLP_VESTER_AVALANCHE, MULTICALL_AVALANCHE],
-        GMX_AVALANCHE_DEPLOYMENT_BLOCK,
+        "arbitrum",
+        RPC_ARBITRUM,
+        [GMX_ARBITRUM, GLP_ARBITRUM, SGMX_ARBITRUM, SGLP_ARBITRUM],
+        [STAKED_GMX_TRACKER_ARBITRUM, ESGMX_ARBITRUM, FEE_GMX_TRACKER_ARBITRUM, BONUS_GMX_TRACKER_ARBITRUM, GMX_VESTER_ARBITRUM, GLP_VESTER_ARBITRUM, MULTICALL_ARBITRUM],
+        GMX_ARBITRUM_DEPLOYMENT_BLOCK,
     )
 
 
 def initialize_web3_connection(rpc_url):
     return Web3(Web3.HTTPProvider(rpc_url))
-
-
-def create_log_filter_params(contract_address, start_block, end_block, event_signature):
-    return {
-        "fromBlock": start_block,
-        "toBlock": end_block,
-        "address": contract_address,
-        "topics": [event_signature],
-    }
-
-
-def fetch_logs_for_range(args, max_retries=3, initial_wait=1):
-    range_info, rpc_url, contract_addresses = args
-    web3 = initialize_web3_connection(rpc_url)
-    start_block, end_block = range_info
-    all_logs = []
-
-    for address in contract_addresses:
-        retry_count = 0
-        while retry_count < max_retries:
-            try:
-                filter_params = create_log_filter_params(address, start_block, end_block, TRANSFER_EVENT_SIGNATURE)
-                logs = web3.eth.get_logs(filter_params)
-                all_logs.extend(logs)
-                break  # Break the loop if the operation is successful
-            except Exception as e:
-                logging.error(f"Error fetching logs: {e}")
-                retry_count += 1
-                time.sleep(initial_wait * 2**retry_count)  # Exponential backoff
-
-        if retry_count == max_retries:
-            logging.error(f"Failed to fetch logs after {max_retries} attempts.")
-
-    return all_logs
-
-
-def divide_into_chunks(start_block, end_block, chunk_size):
-    ranges = []
-    while start_block < end_block:
-        batch_end_block = min(start_block + chunk_size, end_block)
-        ranges.append((start_block, batch_end_block))
-        start_block = batch_end_block + 1
-    return ranges
-
-
-def extract_to_addresses(logs):
-    to_addresses = set()
-    for log in logs:
-        encoded_address = log["topics"][2]
-        decoded_address = Web3.to_checksum_address(encoded_address.hex()[-40:])
-        to_addresses.add(decoded_address)
-    return list(to_addresses)
 
 
 def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_gmx_tracker, bonus_gmx_tracker, gmx_vester, glp_vester, contract_addresses, helper_contracts, multicall, max_retries=10, initial_wait=1):
@@ -225,16 +170,17 @@ def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_
 
 
 if __name__ == "__main__":
+
+    # Create the parser
+    parser = argparse.ArgumentParser(description='Process some integers.')
+
+    # Add arguments
+    parser.add_argument('-s', '--start', type=int, required=True, help='Start index')
+    parser.add_argument('-e', '--end', type=int, required=True, help='End index')
+
+    args = parser.parse_args()
+    
     network_name, rpc_url, contract_addresses, helper_contracts, deployment_block = choose_network()
-    latest_block_number = initialize_web3_connection(rpc_url).eth.block_number
-
-    block_ranges = divide_into_chunks(deployment_block, latest_block_number, BLOCK_RANGE_LIMIT)
-    args = [(range_info, rpc_url, contract_addresses) for range_info in block_ranges]
-    chunksize = 20
-
-    all_logs = process_map(fetch_logs_for_range, args, chunksize=chunksize, max_workers=NUM_PROCESSES)
-    all_logs_flat = list(itertools.chain(*all_logs))
-    unique_to_addresses = extract_to_addresses(all_logs_flat)
 
     web3 = initialize_web3_connection(rpc_url)
 
@@ -248,13 +194,13 @@ if __name__ == "__main__":
     glp_vester = web3.eth.contract(address=helper_contracts[5], abi=gmx_vester_abi)
     multicall = web3.eth.contract(address=helper_contracts[6], abi=multicall_abi)
 
-    print(f"Found {len(unique_to_addresses)} Unique addresses")
+    START_INDEX = args.start
+    END_INDEX = args.end
 
-    df = pd.DataFrame(columns=["account", "GMX in wallet", "GMX staked", "esGMX in wallet", "esGMX staked", "GLP in wallet", "GLP staked", "MP in wallet", "MP staked", "esGMX earned from GMX/esGMX/MPs", "GMX needed to vest", "esGMX earned from GLP", "GLP needed to vest"])
+    file_path = 'gmx_accounts_arbitrum.csv'
+    df = pd.read_csv(file_path)
+    unique_to_addresses = df["account"].iloc[START_INDEX:END_INDEX+1]
 
-    df["account"] = unique_to_addresses
-
-    df.to_csv(f"gmx_accounts_{network_name}.csv", index=False)
 
     with ThreadPoolExecutor(max_workers=NUM_PROCESSES) as executor:
         # Submitting tasks to the executor
@@ -273,5 +219,7 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"Error processing data for account {account}: {str(e)}")
 
-    df.to_csv(f"gmx_accounts_{network_name}_{latest_block_number}.csv", index=False)
-    print(f"CSV file created: gmx_accounts_{network_name}_{latest_block_number}.csv")
+    df_subset = df.iloc[START_INDEX:END_INDEX+1]
+
+    df_subset.to_csv(f"gmx_accounts_{network_name}_{START_INDEX}_{END_INDEX}.csv", index=False)
+    print(f"CSV file created: gmx_accounts_{network_name}_{START_INDEX}_{END_INDEX}.csv")
