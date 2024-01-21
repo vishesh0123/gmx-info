@@ -66,12 +66,13 @@ def choose_network():
     #         )
     #     else:
     #         print("Invalid choice. Please enter 1 or 2.")
+
     return (
-        "arbitrum",
-        RPC_ARBITRUM,
-        [GMX_ARBITRUM, GLP_ARBITRUM, SGMX_ARBITRUM, SGLP_ARBITRUM],
-        [STAKED_GMX_TRACKER_ARBITRUM, ESGMX_ARBITRUM, FEE_GMX_TRACKER_ARBITRUM, BONUS_GMX_TRACKER_ARBITRUM, GMX_VESTER_ARBITRUM, GLP_VESTER_ARBITRUM, MULTICALL_ARBITRUM],
-        GMX_ARBITRUM_DEPLOYMENT_BLOCK,
+        "avalanche",
+        RPC_AVALANCHE,
+        [GMX_AVALANCHE, GLP_AVALANCHE, SGMX_AVALANCHE, SGLP_AVALANCHE],
+        [STAKED_GMX_TRACKER_AVALANCHE, ESGMX_AVALANCHE, FEE_GMX_TRACKER_AVALANCHE, BONUS_GMX_TRACKER_AVALANCHE, GMX_VESTER_AVALANCHE, GLP_VESTER_AVALANCHE, MULTICALL_AVALANCHE],
+        GMX_AVALANCHE_DEPLOYMENT_BLOCK,
     )
 
 
@@ -170,16 +171,15 @@ def fetch_account_data(account, gmx, staked_gmx_tracker, esgmx, glp, staked_fee_
 
 
 if __name__ == "__main__":
-
     # Create the parser
-    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser = argparse.ArgumentParser(description="Process some integers.")
 
     # Add arguments
-    parser.add_argument('-s', '--start', type=int, required=True, help='Start index')
-    parser.add_argument('-e', '--end', type=int, required=True, help='End index')
+    parser.add_argument("-s", "--start", type=int, required=True, help="Start index")
+    parser.add_argument("-e", "--end", type=int, required=True, help="End index")
 
     args = parser.parse_args()
-    
+
     network_name, rpc_url, contract_addresses, helper_contracts, deployment_block = choose_network()
 
     web3 = initialize_web3_connection(rpc_url)
@@ -197,10 +197,9 @@ if __name__ == "__main__":
     START_INDEX = args.start
     END_INDEX = args.end
 
-    file_path = 'gmx_accounts_arbitrum.csv'
+    file_path = "gmx_accounts_avalanche.csv"
     df = pd.read_csv(file_path)
-    unique_to_addresses = df["account"].iloc[START_INDEX:END_INDEX+1]
-
+    unique_to_addresses = df["account"].iloc[START_INDEX : END_INDEX + 1]
 
     with ThreadPoolExecutor(max_workers=NUM_PROCESSES) as executor:
         # Submitting tasks to the executor
@@ -219,7 +218,7 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"Error processing data for account {account}: {str(e)}")
 
-    df_subset = df.iloc[START_INDEX:END_INDEX+1]
+    df_subset = df.iloc[START_INDEX : END_INDEX + 1]
 
     df_subset.to_csv(f"gmx_accounts_{network_name}_{START_INDEX}_{END_INDEX}.csv", index=False)
     print(f"CSV file created: gmx_accounts_{network_name}_{START_INDEX}_{END_INDEX}.csv")
